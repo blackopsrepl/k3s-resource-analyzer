@@ -1,0 +1,5 @@
+cmd/kresa-agent/kresa-agent
+vendor
+k3s-resource-analyzer.code-workspace
+.vscode
+.env
