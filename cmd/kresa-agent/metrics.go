@@ -16,8 +16,8 @@ type MetricsCollector struct {
 
 // Represents pod and node metrics
 type ResourceMetrics struct {
-	PodMetrics   []PodMetric
-	NodesMetrics []NodeMetric
+	PodMetrics  []PodMetric
+	NodeMetrics []NodeMetric
 }
 
 // Represents metrics for single pod
@@ -52,13 +52,20 @@ func (collector *MetricsCollector) collectMetrics(ctx context.Context) (*Resourc
 
 	// Use channels for concurrent collection
 	podChan := make(chan []PodMetric)
-	// nodeChan := make(chan []NodeMetric)
+	nodeChan := make(chan []NodeMetric)
 	errChan := make(chan error, 2)
 
+	// Run goroutines
 	go collector.collectPodMetrics(ctx, podChan, errChan)
+	go collector.collectNodeMetrics(ctx, nodeChan, errChan)
 
 	select {
 	case metrics.PodMetrics = <-podChan:
+	case err = <-errChan:
+		return nil, err
+	}
+	select {
+	case metrics.NodeMetrics = <-nodeChan:
 	case err = <-errChan:
 		return nil, err
 	}
@@ -86,4 +93,21 @@ func (collector *MetricsCollector) collectPodMetrics(ctx context.Context, podCha
 	podChan <- podMetrics
 }
 
-func collectNodeMetrics(collector *MetricsCollector) {}
+func (collector *MetricsCollector) collectNodeMetrics(ctx context.Context, nodeChan chan<- []NodeMetric, errChan chan<- error) {
+	nodeMetricsList, err := collector.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, v1.ListOptions{})
+	if err != nil {
+		errChan <- fmt.Errorf("Failed to list node metrics: %v", err)
+		return
+	}
+	var nodeMetrics []NodeMetric
+	for _, nm := range nodeMetricsList.Items {
+		nodeMetrics = append(nodeMetrics, NodeMetric{
+			NodeName:       nm.Name,
+			CPUUsage:       nm.Usage.Cpu().MilliValue(),
+			MemoryUsage:    nm.Usage.Memory().Value() / (1024 * 1024),
+			CPUCapacity:    6000,
+			MemoryCapacity: 65536,
+		})
+	}
+	nodeChan <- nodeMetrics
+}
