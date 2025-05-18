@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
+	"os"
 	"testing"
 
 	"k8s.io/client-go/rest"
@@ -15,11 +15,18 @@ func TestCollectMetrics(t *testing.T) {
 
 	var err error
 
-	kubeconfig := flag.String("kubeconfig", "/home/pvd/.kube/config", "Path to kubeconfig file (if not in-cluster)")
+	envFile := "../../.env"
 
-	config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
+	setEnv(envFile)
+
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
 		log.Fatal(err)
+	}
+
+	config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		log.Fatalf("KUBECONFIG must be set as environment variable!")
 	}
 
 	collector, err := newMetricsCollector(config)
